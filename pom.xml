@@ -18,12 +18,12 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.amazonaws</groupId>
-  <artifactId>kinesis-log4j-appender</artifactId>
+  <groupId>com.mlbam.amazonaws</groupId>
+  <artifactId>kinesis-log4j2-appender</artifactId>
   <version>1.0.0</version>
 
   <name>Log4j Appender for pushing logs to Kinesis</name>
-  <url>https://github.com/awslabs/kinesis-log4j-appender.git</url>
+  <url>https://github.com/prasad/kinesis-log4j-appender.git</url>
 
   <build>
     <plugins>
@@ -43,17 +43,31 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-shade-plugin</artifactId>
-        <version>${maven-shade-plugin.version}</version>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>${maven-jar-plugin.version}</version>
         <executions>
           <execution>
             <phase>package</phase>
             <goals>
-              <goal>shade</goal>
+              <!--<goal>shade</goal>-->
+              <goal>jar</goal>
             </goals>
           </execution>
         </executions>
       </plugin>
+        <!--<plugin>-->
+            <!--<groupId>org.apache.maven.plugins</groupId>-->
+            <!--<artifactId>maven-shade-plugin</artifactId>-->
+            <!--<version>${maven-shade-plugin.version}</version>-->
+            <!--<executions>-->
+                <!--<execution>-->
+                    <!--<phase>package</phase>-->
+                    <!--<goals>-->
+                        <!--<goal>shade</goal>-->
+                    <!--</goals>-->
+                <!--</execution>-->
+            <!--</executions>-->
+        <!--</plugin>        -->
     </plugins>
   </build>
 
@@ -65,22 +79,43 @@
       <version>${aws-java-sdk.version}</version>
     </dependency>
 
-    <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
-      <version>${log4j.version}</version>
-    </dependency>
+      <dependency>
+          <groupId>org.apache.logging.log4j</groupId>
+          <artifactId>log4j-api</artifactId>
+          <version>${log4j.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>org.apache.logging.log4j</groupId>
+          <artifactId>log4j-core</artifactId>
+          <version>${log4j.version}</version>
+      </dependency>
+
   </dependencies>
 
-  <properties>
+    <distributionManagement>
+        <repository>
+            <id>artifactory.ops</id>
+            <name>artifactory.ops-releases</name>
+            <url>http://artifactory.ops.am1.qa.ext.bamgrid.com/artifactory/recon-dependencies</url>
+        </repository>
+        <snapshotRepository>
+            <id>artifactory.ops</id>
+            <name>artifactory.ops-snapshots</name>
+            <url>http://artifactory.ops.am1.qa.ext.bamgrid.com/artifactory/recon-dependencies</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+
+    <properties>
     <general.encoding>UTF-8</general.encoding>
     
     <!-- JAVA -->
     <java.version>1.7</java.version>
     <java.source.encoding>${general.encoding}</java.source.encoding>
     <aws-java-sdk.version>1.7.0</aws-java-sdk.version>
-    <log4j.version>1.2.16</log4j.version>
+    <log4j.version>2.0.2</log4j.version>
     <maven-compiler-plugin.version>3.1</maven-compiler-plugin.version>
     <maven-shade-plugin.version>2.2</maven-shade-plugin.version>
+    <maven-jar-plugin.version>2.5</maven-jar-plugin.version>
   </properties>
 </project>

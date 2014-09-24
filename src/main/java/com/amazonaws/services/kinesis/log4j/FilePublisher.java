@@ -19,9 +19,11 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Enumeration;
+import java.util.Map;
 
-import org.apache.log4j.Appender;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
@@ -36,17 +38,18 @@ import org.joda.time.format.PeriodFormat;
  * src/main/resources/log4j-sample.properties
  */
 public class FilePublisher {
-  private static final Logger LOGGER = Logger.getLogger(FilePublisher.class);
+  private static final Logger LOGGER = LogManager.getLogger(FilePublisher.class);
   private static final long SLEEP_INTERVAL = 5000;
 
   private static long getBufferedRecordsCountFromKinesisAppenders() {
     long bufferedRecordsCount = 0;
-    Enumeration allAppenders = LOGGER.getAllAppenders();
-    while (allAppenders.hasMoreElements()) {
-      Appender appender = (Appender) allAppenders.nextElement();
-      if (appender instanceof KinesisAppender) {
-        bufferedRecordsCount += ((KinesisAppender) appender).getTaskBufferSize();
-      }
+    Map<String, Appender> allAppenders = ((org.apache.logging.log4j.core.Logger)LOGGER).getAppenders();
+
+    for (Map.Entry<String, Appender> entry : allAppenders.entrySet() ){
+        Appender appender = entry.getValue();
+        if (appender instanceof KinesisAppender) {
+            bufferedRecordsCount += ((KinesisAppender) appender).getTaskBufferSize();
+        }
     }
     return bufferedRecordsCount;
   }
@@ -66,7 +69,7 @@ public class FilePublisher {
       System.exit(2);
     }
 
-    Logger kinesisLogger = Logger.getLogger("KinesisLogger");
+    Logger kinesisLogger = LogManager.getLogger("com.mlbam.recon.telemetry.KinesisTelemetryProducerUsingLog4j");
     int i = 0;
     DateTime startTime = DateTime.now();
     BufferedReader reader = new BufferedReader(new FileReader(logFile));

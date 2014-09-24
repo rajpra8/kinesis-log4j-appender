@@ -14,7 +14,8 @@
  ******************************************************************************/
 package com.amazonaws.services.kinesis.log4j.helpers;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
@@ -23,12 +24,14 @@ import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.kinesis.model.PutRecordRequest;
 import com.amazonaws.services.kinesis.model.PutRecordResult;
 
+
+
 /**
  * Gathers information on how many put requests made by AWS SDK's async client,
  * succeeded or failed since the beginning
  */
 public class AsyncPutCallStatsReporter implements AsyncHandler<PutRecordRequest, PutRecordResult> {
-  private static Logger logger = Logger.getLogger(AsyncPutCallStatsReporter.class);
+  private static Logger logger = LogManager.getLogger(AsyncPutCallStatsReporter.class);
   private String appenderName;
   private long successfulRequestCount;
   private long failedRequestCount;
