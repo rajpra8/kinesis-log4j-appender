@@ -124,7 +124,7 @@ public class KinesisAppender extends AbstractAppender {
 
     ) {
         if (name == null) {
-            LOGGER.error("No name provided for ConsoleAppender");
+            LOGGER.error("No name provided for KinesisAppender");
             return null;
         }
         if (layout == null) {
@@ -172,6 +172,7 @@ public class KinesisAppender extends AbstractAppender {
     }
 
     ClientConfiguration clientConfiguration = new ClientConfiguration();
+    clientConfiguration.setMaxConnections(threadCount);
     clientConfiguration.setMaxErrorRetry(maxRetries);
     clientConfiguration.setRetryPolicy(new RetryPolicy(PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION,
         PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY, maxRetries, true));
@@ -182,6 +183,11 @@ public class KinesisAppender extends AbstractAppender {
     ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(threadCount, threadCount,
         AppenderConstants.DEFAULT_THREAD_KEEP_ALIVE_SEC, TimeUnit.SECONDS, taskBuffer, new BlockFastProducerPolicy());
     threadPoolExecutor.prestartAllCoreThreads();
+
+    LOGGER.info("configured max connection:  " + clientConfiguration.getMaxConnections() +
+            " max pool size  " + threadPoolExecutor.getMaximumPoolSize() + " core pool size " +
+          threadPoolExecutor.getCorePoolSize()
+    );
 
 //      AWSCredentialsProvider provider = new AWSCredentialsProvider(
 //              ({
@@ -236,7 +242,8 @@ public class KinesisAppender extends AbstractAppender {
    *
    * Log4j 2 has currently no way to get this invoked.
    */
-  public void close() {
+  @Override
+  public void stop() {
     ThreadPoolExecutor threadpool = (ThreadPoolExecutor) kinesisClient.getExecutorService();
     threadpool.shutdown();
     BlockingQueue<Runnable> taskQueue = threadpool.getQueue();
