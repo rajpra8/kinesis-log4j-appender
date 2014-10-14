@@ -14,32 +14,32 @@
  ******************************************************************************/
 package com.amazonaws.services.kinesis.log4j.helpers;
 
+import com.amazonaws.handlers.AsyncHandler;
+import com.amazonaws.services.kinesis.model.PutRecordsRequest;
+import com.amazonaws.services.kinesis.model.PutRecordsResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
 
-import com.amazonaws.handlers.AsyncHandler;
-import com.amazonaws.services.kinesis.model.PutRecordRequest;
-import com.amazonaws.services.kinesis.model.PutRecordResult;
-
-
 
 /**
  * Gathers information on how many put requests made by AWS SDK's async client,
  * succeeded or failed since the beginning
  */
-public class AsyncPutCallStatsReporter implements AsyncHandler<PutRecordRequest, PutRecordResult> {
-  private static Logger logger = LogManager.getLogger(AsyncPutCallStatsReporter.class);
+public class AsyncBatchPutHandler implements AsyncHandler<PutRecordsRequest, PutRecordsResult> {
+  private static Logger logger = LogManager.getLogger(AsyncBatchPutHandler.class);
   private String appenderName;
   private long successfulRequestCount;
   private long failedRequestCount;
   private DateTime startTime;
+  private AmazonKinesisPutRecordsHelper amazonKinesisPutRecordsHelper;
 
-  public AsyncPutCallStatsReporter(String appenderName) {
+  public AsyncBatchPutHandler(String appenderName, AmazonKinesisPutRecordsHelper amazonKinesisPutRecordsHelper) {
     this.appenderName = appenderName;
     this.startTime = DateTime.now();
+    this.amazonKinesisPutRecordsHelper = amazonKinesisPutRecordsHelper;
   }
 
   /**
@@ -49,7 +49,7 @@ public class AsyncPutCallStatsReporter implements AsyncHandler<PutRecordRequest,
    */
   @Override
   public void onError(Exception exception) {
-    failedRequestCount++;
+    failedRequestCount = failedRequestCount + amazonKinesisPutRecordsHelper.getBatchSize();
     logger.error("Failed to publish a log entry to kinesis using appender: " + appenderName, exception);
   }
 
@@ -59,9 +59,11 @@ public class AsyncPutCallStatsReporter implements AsyncHandler<PutRecordRequest,
    * debugging tool while tweaking parameters for the appender.
    */
   @Override
-  public void onSuccess(PutRecordRequest request, PutRecordResult result) {
-    successfulRequestCount++;
-    if (logger.isInfoEnabled() && (successfulRequestCount + failedRequestCount) % 3000 == 0) {
+  public void onSuccess(PutRecordsRequest request, PutRecordsResult result) {
+    int currentSuccessfulCount = amazonKinesisPutRecordsHelper.getSuccessCountAndaddFailedRecordsBackToQueue(request, result);
+    successfulRequestCount = successfulRequestCount + currentSuccessfulCount;
+
+    if (logger.isInfoEnabled() && (successfulRequestCount + failedRequestCount) % amazonKinesisPutRecordsHelper.getBatchSize() == 0) {
       logger.info("Appender (" + appenderName + ") made " + successfulRequestCount
           + " successful put requests out of total " + (successfulRequestCount + failedRequestCount) + " in "
           + PeriodFormat.getDefault().print(new Period(startTime, DateTime.now())) + " since start");

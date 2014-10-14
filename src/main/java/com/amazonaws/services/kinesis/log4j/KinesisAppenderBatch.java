@@ -14,6 +14,29 @@
  ******************************************************************************/
 package com.amazonaws.services.kinesis.log4j;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.retry.PredefinedRetryPolicies;
+import com.amazonaws.retry.RetryPolicy;
+import com.amazonaws.services.kinesis.AmazonKinesisAsyncClient;
+import com.amazonaws.services.kinesis.log4j.helpers.*;
+import com.amazonaws.services.kinesis.model.DescribeStreamResult;
+import com.amazonaws.services.kinesis.model.PutRecordRequest;
+import com.amazonaws.services.kinesis.model.ResourceNotFoundException;
+import com.amazonaws.services.kinesis.model.StreamStatus;
+import org.apache.logging.log4j.core.Filter;
+import org.apache.logging.log4j.core.Layout;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
+import org.apache.logging.log4j.core.config.plugins.PluginElement;
+import org.apache.logging.log4j.core.config.plugins.PluginFactory;
+import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.apache.logging.log4j.core.util.Booleans;
+
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -22,36 +45,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.kinesis.log4j.helpers.DiscardFastProducerPolicy;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Filter;
-import org.apache.logging.log4j.core.Layout;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.retry.PredefinedRetryPolicies;
-import com.amazonaws.retry.RetryPolicy;
-import com.amazonaws.services.kinesis.AmazonKinesisAsyncClient;
-import com.amazonaws.services.kinesis.log4j.helpers.AsyncPutCallStatsReporter;
-import com.amazonaws.services.kinesis.log4j.helpers.BlockFastProducerPolicy;
-import com.amazonaws.services.kinesis.log4j.helpers.Validator;
-import com.amazonaws.services.kinesis.model.DescribeStreamResult;
-import com.amazonaws.services.kinesis.model.PutRecordRequest;
-import com.amazonaws.services.kinesis.model.ResourceNotFoundException;
-import com.amazonaws.services.kinesis.model.StreamStatus;
-import org.apache.logging.log4j.core.config.plugins.Plugin;
-import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
-import org.apache.logging.log4j.core.config.plugins.PluginElement;
-import org.apache.logging.log4j.core.config.plugins.PluginFactory;
-import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.apache.logging.log4j.core.util.Booleans;
-
 /**
  * Log4J Appender implementation to support sending data from java applications
  * directly into a Kinesis stream.
@@ -59,8 +52,8 @@ import org.apache.logging.log4j.core.util.Booleans;
  * More details are available <a
  * href="https://github.com/prasad/kinesis-log4j-appender">here</a>
  */
-@Plugin(name = "Kinesis", category = "Core", elementType = "appender", printObject = true)
-public class KinesisAppender extends AbstractAppender {
+@Plugin(name = "KinesisBatch", category = "Core", elementType = "appender", printObject = true)
+public class KinesisAppenderBatch extends AbstractAppender {
  // private static final Logger LOGGER = LogManager.getLogger(KinesisAppender.class);
   private  String encoding ;
   private  int maxRetries;
@@ -73,17 +66,19 @@ public class KinesisAppender extends AbstractAppender {
   private boolean initializationFailed = false;
   private BlockingQueue<Runnable> taskBuffer;
   private AmazonKinesisAsyncClient kinesisClient;
-  private AsyncPutCallStatsReporter asyncCallHander;
+  private AmazonKinesisPutRecordsHelper amazonKinesisPutRecordsHelper;
+  private int batchSize;
 
-    protected KinesisAppender(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions,
-                              String encoding,
-                              int maxRetries,
-                              int bufferSize,
-                              int threadCount,
-                              int shutdownTimeout,
-                              String streamName,
-                              String accessKey,
-                              String secret
+    protected KinesisAppenderBatch(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions,
+                                   String encoding,
+                                   int maxRetries,
+                                   int bufferSize,
+                                   int threadCount,
+                                   int shutdownTimeout,
+                                   String streamName,
+                                   String accessKey,
+                                   String secret,
+                                   int batchSize
 
     ) {
         super(name, filter, layout, ignoreExceptions);
@@ -95,6 +90,7 @@ public class KinesisAppender extends AbstractAppender {
         setStreamName(streamName);
         this.accessKey = accessKey;
         this.secret = secret;
+        this.batchSize = batchSize;
 
         activateOptions();
     }
@@ -109,7 +105,7 @@ public class KinesisAppender extends AbstractAppender {
      * @return The KinesisAppender.
      */
     @PluginFactory
-    public static KinesisAppender createAppender(
+    public static KinesisAppenderBatch createAppender(
             @PluginElement("Layout") Layout<? extends Serializable> layout,
             @PluginElement("Filter") final Filter filter,
             @PluginAttribute("name") final String name,
@@ -121,7 +117,8 @@ public class KinesisAppender extends AbstractAppender {
             @PluginAttribute(value = "shutdownTimeout", defaultInt = AppenderConstants.DEFAULT_SHUTDOWN_TIMEOUT_SEC)  int shutdownTimeout,
             @PluginAttribute("streamName") String streamName,
             @PluginAttribute("accessKey") String accessKey,
-            @PluginAttribute("secret") String secret
+            @PluginAttribute("secret") String secret,
+            @PluginAttribute("batchSize") int batchSize
 
     ) {
         if (name == null) {
@@ -135,8 +132,8 @@ public class KinesisAppender extends AbstractAppender {
 
 
 
-        return new KinesisAppender(name,filter, layout, ignoreExceptions, encoding, maxRetries, bufferSize, threadCount,
-                shutdownTimeout, streamName, accessKey, secret);
+        return new KinesisAppenderBatch(name,filter, layout, ignoreExceptions, encoding, maxRetries, bufferSize, threadCount,
+                shutdownTimeout, streamName, accessKey, secret, batchSize);
     }
 
     public void error(String message) {
@@ -246,7 +243,11 @@ public class KinesisAppender extends AbstractAppender {
 
   //clientConfiguration.withConnectionTimeout(50).withSocketTimeout(50);
 
-    asyncCallHander = new AsyncPutCallStatsReporter(getName());
+    amazonKinesisPutRecordsHelper = new AmazonKinesisPutRecordsHelper(kinesisClient, streamName, batchSize);
+
+
+
+
   }
 
   /**
@@ -303,10 +304,17 @@ public class KinesisAppender extends AbstractAppender {
     }
     try {
       String message = logEvent.getMessage().getFormattedMessage();
-      ByteBuffer data = ByteBuffer.wrap(message.getBytes(encoding));
+      String[] partionkeyAndData =  message.split("\t");
+      String partitionKey = (partionkeyAndData.length == 2) ? partionkeyAndData[0] :  UUID.randomUUID().toString();
+      String dataStr =  (partionkeyAndData.length == 2) ? partionkeyAndData[1] :  partionkeyAndData[0];
 
-      kinesisClient.putRecordAsync(new PutRecordRequest().withPartitionKey(UUID.randomUUID().toString())
-          .withStreamName(streamName).withData(data), asyncCallHander);
+      ByteBuffer data = ByteBuffer.wrap(dataStr.getBytes(encoding));
+
+      if (amazonKinesisPutRecordsHelper.addRecord(data, partitionKey, null)) {
+          amazonKinesisPutRecordsHelper.sendRecordsAsync();
+      }
+
+
     } catch (Exception e) {
       LOGGER.error("Failed to schedule log entry for publishing into Kinesis stream: " + streamName);
       getHandler().error("Failed to schedule log entry for publishing into Kinesis stream: " + streamName, logEvent, e);

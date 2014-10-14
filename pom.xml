@@ -20,7 +20,7 @@
 
   <groupId>com.mlbam.amazonaws</groupId>
   <artifactId>kinesis-log4j2-appender</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0_beta</version>
 
   <name>Log4j Appender for pushing logs to Kinesis</name>
   <url>https://github.com/prasad/kinesis-log4j-appender.git</url>
@@ -73,11 +73,18 @@
 
   <dependencies>
 
-    <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk</artifactId>
-      <version>${aws-java-sdk.version}</version>
-    </dependency>
+    <!--<dependency>-->
+      <!--<groupId>com.amazonaws</groupId>-->
+      <!--<artifactId>aws-java-sdk</artifactId>-->
+      <!--<version>${aws-java-sdk.version}</version>-->
+    <!--</dependency>-->
+
+      <dependency>
+          <groupId>aws-java-sdk</groupId>
+          <artifactId>aws-java-sdk</artifactId>
+          <version>1.9.0.beta</version>
+      </dependency>
+
 
       <dependency>
           <groupId>org.apache.logging.log4j</groupId>
@@ -89,6 +96,25 @@
           <artifactId>log4j-core</artifactId>
           <version>${log4j.version}</version>
       </dependency>
+
+      <dependency>
+          <groupId>com.lmax</groupId>
+          <artifactId>disruptor</artifactId>
+          <version>${com.lmax.disruptor.version}</version>
+      </dependency>
+
+      <dependency>
+          <groupId>org.apache.logging.log4j</groupId>
+          <artifactId>log4j-jcl</artifactId>
+          <version>2.0.2</version>
+      </dependency>
+
+      <dependency>
+          <groupId>joda-time</groupId>
+          <artifactId>joda-time</artifactId>
+          <version>2.5</version>
+      </dependency>
+
 
   </dependencies>
 
@@ -110,12 +136,15 @@
     <general.encoding>UTF-8</general.encoding>
     
     <!-- JAVA -->
-    <java.version>1.7</java.version>
+    <java.version>1.8</java.version>
     <java.source.encoding>${general.encoding}</java.source.encoding>
-    <aws-java-sdk.version>1.7.0</aws-java-sdk.version>
+    <!--<aws-java-sdk.version>1.8.9</aws-java-sdk.version>-->
+    <aws-java-sdk.version>1.9.0</aws-java-sdk.version>
+    <!--<aws-java-sdk.version>1.9.0.beta</aws-java-sdk.version>-->
     <log4j.version>2.0.2</log4j.version>
     <maven-compiler-plugin.version>3.1</maven-compiler-plugin.version>
     <maven-shade-plugin.version>2.2</maven-shade-plugin.version>
     <maven-jar-plugin.version>2.5</maven-jar-plugin.version>
+    <com.lmax.disruptor.version>3.3.0</com.lmax.disruptor.version>
   </properties>
 </project>
