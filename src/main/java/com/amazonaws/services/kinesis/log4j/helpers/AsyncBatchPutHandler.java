@@ -50,7 +50,7 @@ public class AsyncBatchPutHandler implements AsyncHandler<PutRecordsRequest, Put
   @Override
   public void onError(Exception exception) {
     failedRequestCount = failedRequestCount + amazonKinesisPutRecordsHelper.getBatchSize();
-    logger.error("Failed to publish a log entry to kinesis using appender: " + appenderName, exception);
+    logger.error("Failed to publish a log entry to kinesis using appender: " + appenderName + exception.getMessage(), exception);
   }
 
   /**

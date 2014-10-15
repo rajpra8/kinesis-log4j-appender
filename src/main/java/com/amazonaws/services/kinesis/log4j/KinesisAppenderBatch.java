@@ -223,6 +223,7 @@ public class KinesisAppenderBatch extends AbstractAppender {
         threadPoolExecutor);
 
     DescribeStreamResult describeResult = null;
+    int numOfShards = 1;
     try {
       describeResult = kinesisClient.describeStream(streamName);
 
@@ -233,7 +234,9 @@ public class KinesisAppenderBatch extends AbstractAppender {
       }
       else
       {
-          LOGGER.info("number of shards for stream is " + describeResult.getStreamDescription().getShards().size());
+          numOfShards = describeResult.getStreamDescription().getShards().size();
+          LOGGER.info("number of shards for stream is " + numOfShards);
+
       }
 
     } catch (ResourceNotFoundException rnfe) {
@@ -243,7 +246,7 @@ public class KinesisAppenderBatch extends AbstractAppender {
 
   //clientConfiguration.withConnectionTimeout(50).withSocketTimeout(50);
 
-    amazonKinesisPutRecordsHelper = new AmazonKinesisPutRecordsHelper(kinesisClient, streamName, batchSize);
+    amazonKinesisPutRecordsHelper = new AmazonKinesisPutRecordsHelper(kinesisClient, streamName, batchSize, numOfShards);
 
 
 
@@ -310,10 +313,7 @@ public class KinesisAppenderBatch extends AbstractAppender {
 
       ByteBuffer data = ByteBuffer.wrap(dataStr.getBytes(encoding));
 
-      if (amazonKinesisPutRecordsHelper.addRecord(data, partitionKey, null)) {
-          amazonKinesisPutRecordsHelper.sendRecordsAsync();
-      }
-
+      amazonKinesisPutRecordsHelper.addRecord(data, partitionKey, null);
 
     } catch (Exception e) {
       LOGGER.error("Failed to schedule log entry for publishing into Kinesis stream: " + streamName);

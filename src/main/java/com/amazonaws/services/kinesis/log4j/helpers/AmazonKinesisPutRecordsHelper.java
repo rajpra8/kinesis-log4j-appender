@@ -25,11 +25,12 @@ import com.amazonaws.services.kinesis.model.PutRecordsResultEntry;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Kinesis PutRecords helper class to build and send batch of records.
@@ -39,6 +40,7 @@ public class AmazonKinesisPutRecordsHelper {
     private static final Log LOG = LogFactory.getLog(AmazonKinesisPutRecordsHelper.class);
     // Count limit for how many records could be put in one request.
     private static final int RECORDS_COUNT_LIMIT_FOR_ONE_BATCH = 500;
+    private static final int NUMBER_OF_SHARDS = 1;
 
     private final AmazonKinesisAsyncClient amazonKinesisClient;
     private final String streamName;
@@ -46,15 +48,17 @@ public class AmazonKinesisPutRecordsHelper {
     private String sequenceNumberForOrdering;
     private AsyncHandler<PutRecordsRequest, PutRecordsResult> asyncCallHander;
     private int batchSize = RECORDS_COUNT_LIMIT_FOR_ONE_BATCH ;
+    private int numOfShards = 1;
 
     public int getBatchSize() {
         return batchSize;
     }
 
     // Synchronized request list for thread-safe usage.
-    private List<PutRecordsRequestEntry> putRecordsRequestEntryList =
-            Collections.synchronizedList(new ArrayList<PutRecordsRequestEntry>());
+//    private List<PutRecordsRequestEntry> putRecordsRequestEntryList =
+//            Collections.synchronizedList(new ArrayList<PutRecordsRequestEntry>());
 
+    private Map<String, List<PutRecordsRequestEntry> > shardToputRecordsRequestEntryMap;
     /**
      * Constructor. By calling this constructor, helper would not set sequenceNumberForOrdering for
      * each request.
@@ -63,8 +67,9 @@ public class AmazonKinesisPutRecordsHelper {
      */
     public AmazonKinesisPutRecordsHelper(AmazonKinesisAsyncClient amazonKinesisClient,
                                          String streamName,
-                                         int batchSize) {
-        this(amazonKinesisClient, streamName, null, false, batchSize);
+                                         int batchSize,
+                                         int numOfShards) {
+        this(amazonKinesisClient, streamName, null, false, batchSize, numOfShards);
     }
 
     /**
@@ -79,7 +84,7 @@ public class AmazonKinesisPutRecordsHelper {
                                          String streamName,
                                          String initialSequenceNumberForOrdering) {
         this(amazonKinesisClient, streamName, initialSequenceNumberForOrdering, true,
-                RECORDS_COUNT_LIMIT_FOR_ONE_BATCH
+                RECORDS_COUNT_LIMIT_FOR_ONE_BATCH, NUMBER_OF_SHARDS
                 );
     }
 
@@ -94,7 +99,8 @@ public class AmazonKinesisPutRecordsHelper {
                                   String streamName,
                                   String initialSequenceNumberForOrdering,
                                   boolean isUsingSequenceNumberForOrdering,
-                                  int batchSize
+                                  int batchSize,
+                                  int numOfShards
                                   ) {
         this.amazonKinesisClient = amazonKinesisClient;
         this.asyncCallHander = new AsyncBatchPutHandler(streamName, this);
@@ -102,6 +108,11 @@ public class AmazonKinesisPutRecordsHelper {
         this.sequenceNumberForOrdering = initialSequenceNumberForOrdering;
         this.isUsingSequenceNumberForOrdering = isUsingSequenceNumberForOrdering;
         this.batchSize = batchSize;
+        this.numOfShards = numOfShards;
+        shardToputRecordsRequestEntryMap = new ConcurrentHashMap<>();
+        for (int i = 1;  i <= numOfShards ; i++){
+            shardToputRecordsRequestEntryMap.put("shard"+i, new ArrayList<>());
+        }
     }
 
     /**
@@ -117,18 +128,26 @@ public class AmazonKinesisPutRecordsHelper {
         putRecordsRequestEntry.setData(data);
         putRecordsRequestEntry.setPartitionKey(partitionKey);
         putRecordsRequestEntry.setExplicitHashKey(explicitHashKey);
-        putRecordsRequestEntryList.add(putRecordsRequestEntry);
+
+        //calculate the shard
+        String shardBucket = "shard"+calculateShardBucket(partitionKey, numOfShards);
 
         if (LOG.isDebugEnabled()) {
-            LOG.debug(String.format("Add Record : %s", putRecordsRequestEntry.toString()));
+            LOG.debug(String.format("Add Record : %s, shardBucket: %s", putRecordsRequestEntry.toString(),shardBucket));
         }
+        List<PutRecordsRequestEntry>  putRecordsRequestEntryList = shardToputRecordsRequestEntryMap.get(shardBucket);
+        putRecordsRequestEntryList.add(putRecordsRequestEntry);
 
+        boolean timeToFlush = putRecordsRequestEntryList.size() >= getBatchSize();
+        if (timeToFlush){
+            sendRecordsAsync(putRecordsRequestEntryList);
+        }
         // Return true if the entries count hit the limit, otherwise, return false.
-        return (putRecordsRequestEntryList.size() >= getBatchSize());
+        return timeToFlush;
     }
 
 
-    public synchronized boolean sendRecordsAsync() {
+    public synchronized boolean sendRecordsAsync( List<PutRecordsRequestEntry>  putRecordsRequestEntryList) {
         // Only try to put records if there are some records already in cache.
         if (putRecordsRequestEntryList.size() > 0) {
             // Calculate the real number of records which will be put in the request. If the number of records in
@@ -172,7 +191,6 @@ public class AmazonKinesisPutRecordsHelper {
      * thread-safe of handling results.
      */
         int totalSucceedRecordCount = 0;
-        synchronized (putRecordsRequestEntryList) {
             Iterator<PutRecordsRequestEntry> putRecordsRequestEntryIterator =
                     putRecordsRequst.getRecords().iterator();
             for (PutRecordsResultEntry putRecordsResultEntry : putRecordsResult.getRecords()) {
@@ -187,7 +205,6 @@ public class AmazonKinesisPutRecordsHelper {
                     }
 
                     totalSucceedRecordCount++;
-                    putRecordsRequestEntryIterator.remove();
 
                     if (LOG.isDebugEnabled()) {
                         LOG.debug(String.format("Succeed Record : %s", putRecordsResultEntry.toString()));
@@ -197,10 +214,27 @@ public class AmazonKinesisPutRecordsHelper {
                         LOG.debug(String.format("Failed Record : %s with error %s",
                                 putRecordRequestEntry.toString(), message));
                     }
+                    addRecord(putRecordRequestEntry.getData(),putRecordRequestEntry.getPartitionKey(),
+                            putRecordRequestEntry.getExplicitHashKey());
                 }
             }
-            putRecordsRequestEntryList.addAll(putRecordsRequst.getRecords());
-        }
+
         return totalSucceedRecordCount;
+    }
+
+    public static int calculateShardBucket(String partitionKey, int totalNumOfShards){
+        MessageDigest m = null;
+        int shardBucket = 1;
+        try {
+            m = MessageDigest.getInstance("MD5");
+            m.reset();
+            m.update(partitionKey.getBytes());
+            byte[] digest = m.digest();
+            BigInteger bigInt = new BigInteger(1,digest);
+            shardBucket = bigInt.mod(BigInteger.valueOf(totalNumOfShards)).intValue()+1;
+        } catch (NoSuchAlgorithmException e) {
+            //ignore
+        }
+        return shardBucket;
     }
 }
