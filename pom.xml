@@ -20,7 +20,7 @@
 
   <groupId>com.mlbam.amazonaws</groupId>
   <artifactId>kinesis-log4j2-appender</artifactId>
-  <version>1.1.0_beta</version>
+  <version>1.1.1_beta</version>
 
   <name>Log4j Appender for pushing logs to Kinesis</name>
   <url>https://github.com/prasad/kinesis-log4j-appender.git</url>
@@ -113,6 +113,18 @@
           <groupId>joda-time</groupId>
           <artifactId>joda-time</artifactId>
           <version>2.5</version>
+      </dependency>
+
+      <dependency>
+          <groupId>org.apache.httpcomponents</groupId>
+          <artifactId>httpclient</artifactId>
+          <version>4.2.3</version>
+      </dependency>
+
+      <dependency>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-databind</artifactId>
+          <version>2.4.3</version>
       </dependency>
 
 

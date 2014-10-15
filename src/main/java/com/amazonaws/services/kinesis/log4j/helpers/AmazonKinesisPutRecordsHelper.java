@@ -128,7 +128,7 @@ public class AmazonKinesisPutRecordsHelper {
     }
 
 
-    public boolean sendRecordsAsync() {
+    public synchronized boolean sendRecordsAsync() {
         // Only try to put records if there are some records already in cache.
         if (putRecordsRequestEntryList.size() > 0) {
             // Calculate the real number of records which will be put in the request. If the number of records in
@@ -145,7 +145,9 @@ public class AmazonKinesisPutRecordsHelper {
                     putRecordsRequest.setSequenceNumberForOrdering(sequenceNumberForOrdering);
                 }
                 // Set a sub list of the current records list with maximum of 500 records.
-                putRecordsRequest.setRecords(putRecordsRequestEntryList.subList(0, intendToSendRecordNumber));
+                List subList = putRecordsRequestEntryList.subList(0, intendToSendRecordNumber);
+                putRecordsRequest.setRecords(new ArrayList(subList));
+                subList.clear();
                 if (LOG.isDebugEnabled()) {
                     LOG.debug(String.format("SequenceNumberForOrdering : [%s]; NumberOfRecords : [%d]",
                             sequenceNumberForOrdering, intendToSendRecordNumber));
