@@ -1,55 +1,57 @@
-<!--
-  Copyright 2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-  
-  Licensed under the Apache License, Version 2.0 (the "License").
-  You may not use this file except in compliance with the License.
-  A copy of the License is located at
-  
-   http://aws.amazon.com/apache2.0
-  
-  or in the "license" file accompanying this file. This file is distributed
-  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-  express or implied. See the License for the specific language governing
-  permissions and limitations under the License.
--->
-<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
-<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
-  <root>
-    <level value="INFO" />
-    <appender-ref ref="stdout" />
-  </root>
-  <appender name="stdout" class="org.apache.log4j.ConsoleAppender">
-    <layout class="org.apache.log4j.PatternLayout">
-      <param name="ConversionPattern" value="%5p [%t] (%F:%L) - %m%n" />
-    </layout>
-  </appender>
-  <appender name="KINESIS" class="com.amazonaws.services.kinesis.log4j.KinesisAppender">
-    <layout class="org.apache.log4j.PatternLayout">
-      <param name="ConversionPattern" value="%m" />
-    </layout>
-    <!-- mandatory configuration for KINESIS appender -->
-    <param name="streamName" value="testStream" />
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="debug">
+    <Appenders>
 
-    <!--optional, defaults to UTF-8-->
-    <param name="encoding" value="UTF-8" />
-    <!--optional, defaults to 3-->
-    <param name="maxRetries" value="3" />
-    <!--optional, defaults to 2000-->
-    <param name="bufferSize" value="1000" />
-    <!--optional, defaults to 20-->
-    <param name="threadCount" value="20" />
-    <!--optional, defaults to 30 seconds-->
-    <param name="shutdownTimeout" value="30" />
-  </appender>
+        <Console name="STDOUT" target="SYSTEM_OUT">
+            <PatternLayout pattern="%m%n"/>
+        </Console>
 
-  <logger name="KinesisLogger" additivity="false">
-    <level value="INFO" />
-    <appender-ref ref="KINESIS" />
-  </logger>
 
-  <logger name="com.amazonaws.services.kinesis.log4j" additivity="false">
-    <level value="DEBUG" />
-    <appender-ref ref="stdout" />
-  </logger>
+        <KinesisBatch name="kinesisBatch" streamName="teststream" encoding="UTF-8"
+                      maxRetries="3"  bufferSize="10000"
+                      threadCount="10"
+                      shutdownTimeout="30"
+                      accessKey = "xxxx"
+                      secret = "xxxxxxx"
+                      batchSize = "500"
+                >
+            <PatternLayout pattern="%m"/>
+        </KinesisBatch>
 
-</log4j:configuration>
+
+        <RollingFile name="KINESISS3ROLLING" fileName="${sys:user.home}/logs/test-kinesis-streams-1.log"
+                     filePattern="/Users/prasad/logs/test-kinesis-streams-1.log-%i">
+            <PatternLayout pattern="%m%n"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="20 K"/>
+                <!--<TimeBasedTriggeringPolicy interval="5000" modulate="true"/>-->
+            </Policies>
+            <S3RolloverStrategy bucketName="test_bucket"
+                                bufferSize="10000"
+                                threadCount="25"
+                                accessKey = "xxxx"
+                                secret = "xxxxx"
+                                max ="10"
+                                min = "1"
+                                fileIndex = "max"
+                                compressionLevel = "-1"
+                    />
+            <!--<DefaultRolloverStrategy max="10"/>-->
+        </RollingFile>
+
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="STDOUT"/>
+        </Root>
+
+        <Logger name="kinesisBatch" level="info" additivity="false">
+            <AppenderRef ref="kinesisBatch"/>
+        </Logger>
+        <Logger name="KINESISS3ROLLING" level="info" additivity="false">
+            <AppenderRef ref="KINESISS3ROLLING"/>
+        </Logger>
+
+    </Loggers>
+</Configuration>
+

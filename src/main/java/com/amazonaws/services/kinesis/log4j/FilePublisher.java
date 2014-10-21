@@ -73,6 +73,7 @@ public class FilePublisher {
 
     Logger kinesisLogger = LogManager.getLogger("kinesisRolling1");
 
+    Logger kinesisS3Logger = LogManager.getLogger("KINESISS3ROLLING");
 
 
 
@@ -83,14 +84,15 @@ public class FilePublisher {
     StringBuilder sb = new StringBuilder();
     int j = 0;
       while ((line = reader.readLine()) != null) {
-        int loggerNum = randInt(1,4);
+     //   int loggerNum = randInt(1,4);
 //          System.out.println("logger number picked " +  loggerNum );
 //          Logger logger = LogManager.getLogger("kinesisRolling" + loggerNum);
 //          System.out.println("logger name " + logger.getName());
           //logger.info(line);
         //  LogManager.getLogger("kinesis").info(line);
 
-          kinesisBatchLogger.info(line);
+         // kinesisBatchLogger.info(line);
+          kinesisS3Logger.info(line);
       }
 
 //    while ((line = reader.readLine()) != null) {

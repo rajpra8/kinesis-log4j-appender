@@ -70,7 +70,7 @@ We recommend that customers:
 
   ```properties
   accessKey=<AWS_ACCESS_KEY>
-  secretKey=<AWS_SECRET_KEY>
+  secret=<AWS_SECRET_KEY>
   ```
 * Run the following command on command prompt from **KinesisLoggingTest** directory:
 
