@@ -47,8 +47,9 @@ public class S3AsyncPutAction extends AbstractAction {
 
     public  boolean putFile()  {
 
+        File file = new File(fileName);
         try {
-            PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, "test_"+UUID.randomUUID(), new File(fileName));
+            PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, file.getName(), file);
 
             Upload myUpload = transferManager.upload(putObjectRequest);
             myUpload.waitForUploadResult();

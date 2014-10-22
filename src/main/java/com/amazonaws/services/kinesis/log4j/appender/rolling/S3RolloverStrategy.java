@@ -7,6 +7,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.retry.PredefinedRetryPolicies;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.kinesis.log4j.AppenderConstants;
+import com.amazonaws.services.kinesis.log4j.appender.rolling.action.FileDeleteAction;
 import com.amazonaws.services.kinesis.log4j.appender.rolling.action.S3AsyncPutAction;
 import com.amazonaws.services.kinesis.log4j.helpers.AsyncPutCallStatsReporter;
 import com.amazonaws.services.kinesis.log4j.helpers.DiscardFastProducerPolicy;
@@ -118,27 +119,25 @@ public class S3RolloverStrategy extends DefaultRolloverStrategy{
 
         FileRenameAction fileRenameAction = (FileRenameAction) rd.getSynchronous();
 
-        String renamedFileAbsolutePath = "";
-        try {
-            Field f = null; //NoSuchFieldException
-            f = fileRenameAction.getClass().getDeclaredField("destination");
-            f.setAccessible(true);
-            renamedFileAbsolutePath = ((File)f.get(fileRenameAction)).getAbsolutePath();
-        } catch (Exception e) {
-            e.printStackTrace();
+        String renamedFileAbsolutePath = getFilePathValueUsingReflection(fileRenameAction, "destination");
+
+        List<Action> asyncActions = new ArrayList<>();
+
+        if (rd.getAsynchronous() != null){
+
+            Action compressionAction = rd.getAsynchronous();
+            renamedFileAbsolutePath= getFilePathValueUsingReflection(compressionAction, "destination");
+            asyncActions.add(compressionAction);
         }
 
         S3AsyncPutAction s3AsyncPutAction =
                 new S3AsyncPutAction(s3TransferManager, renamedFileAbsolutePath, bucketName);
-        List<Action> actions = new ArrayList<>();
-        actions.add(s3AsyncPutAction);
 
-        if (rd.getAsynchronous() != null){
-            actions.add(rd.getAsynchronous());
-        }
+        asyncActions.add(s3AsyncPutAction);
+        asyncActions.add(new FileDeleteAction(renamedFileAbsolutePath));
 
 
-        CompositeAction compositeAction = new CompositeAction(actions, false);
+        CompositeAction compositeAction = new CompositeAction(asyncActions, false);
 
         KinesisRolloverDescriptionImpl augmented = new KinesisRolloverDescriptionImpl(rd.getActiveFileName(),
                 rd.getAppend(), rd.getSynchronous(), compositeAction);
@@ -147,6 +146,18 @@ public class S3RolloverStrategy extends DefaultRolloverStrategy{
         return augmented;
     }
 
+    private String getFilePathValueUsingReflection(Object obj, String fieldName){
+        String absolutePath = "";
+        try {
+            Field f = null; //NoSuchFieldException
+            f = obj.getClass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            absolutePath = ((File)f.get(obj)).getAbsolutePath();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return absolutePath;
+    }
     /**
      * Configures this appender instance and makes it ready for use by the
      * consumers. It validates mandatory parameters and confirms if the configured
