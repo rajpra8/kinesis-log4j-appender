@@ -31,6 +31,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Kinesis PutRecords helper class to build and send batch of records.
@@ -54,11 +55,14 @@ public class AmazonKinesisPutRecordsHelper {
         return batchSize;
     }
 
+
     // Synchronized request list for thread-safe usage.
 //    private List<PutRecordsRequestEntry> putRecordsRequestEntryList =
 //            Collections.synchronizedList(new ArrayList<PutRecordsRequestEntry>());
 
     private Map<String, List<PutRecordsRequestEntry> > shardToputRecordsRequestEntryMap;
+    private Map<String, AtomicLong>  shardToFlushTime;
+
     /**
      * Constructor. By calling this constructor, helper would not set sequenceNumberForOrdering for
      * each request.
@@ -111,7 +115,9 @@ public class AmazonKinesisPutRecordsHelper {
         this.numOfShards = numOfShards;
         shardToputRecordsRequestEntryMap = new ConcurrentHashMap<>();
         for (int i = 1;  i <= numOfShards ; i++){
-            shardToputRecordsRequestEntryMap.put("shard"+i, new ArrayList<>());
+            String key = "shard"+i;
+            shardToputRecordsRequestEntryMap.put(key,  Collections.synchronizedList(new ArrayList<PutRecordsRequestEntry>()));
+            shardToFlushTime.put(key, new AtomicLong(System.currentTimeMillis()));
         }
     }
 
@@ -138,49 +144,66 @@ public class AmazonKinesisPutRecordsHelper {
         List<PutRecordsRequestEntry>  putRecordsRequestEntryList = shardToputRecordsRequestEntryMap.get(shardBucket);
         putRecordsRequestEntryList.add(putRecordsRequestEntry);
 
-        boolean timeToFlush = putRecordsRequestEntryList.size() >= getBatchSize();
-        if (timeToFlush){
-            sendRecordsAsync(putRecordsRequestEntryList);
+        boolean sizeTriggerForFlush = putRecordsRequestEntryList.size() >= getBatchSize();
+
+
+        if (sizeTriggerForFlush){
+            sendRecordsAsync(shardBucket, putRecordsRequestEntryList);
         }
+
+        checkTimeBaseTriggerForAllBucketsAndFlush();
+
         // Return true if the entries count hit the limit, otherwise, return false.
-        return timeToFlush;
+        return sizeTriggerForFlush;
     }
 
+   public void checkTimeBaseTriggerForAllBucketsAndFlush(){
+       for (Map.Entry<String, List<PutRecordsRequestEntry>> entry : shardToputRecordsRequestEntryMap.entrySet()){
+           //@todo make the time configurable
+           if ((System.currentTimeMillis() - shardToFlushTime.get(entry.getKey()).get()) > 10000) {
+               sendRecordsAsync(entry.getKey(), entry.getValue());
+           }
+       }
+   }
 
-    public synchronized boolean sendRecordsAsync( List<PutRecordsRequestEntry>  putRecordsRequestEntryList) {
-        // Only try to put records if there are some records already in cache.
-        if (putRecordsRequestEntryList.size() > 0) {
-            // Calculate the real number of records which will be put in the request. If the number of records in
-            // the list is no less than 500, set it to 500; otherwise, set it as the list size.
-            final int intendToSendRecordNumber =
-                    (putRecordsRequestEntryList.size() >= RECORDS_COUNT_LIMIT_FOR_ONE_BATCH) ?
-                            RECORDS_COUNT_LIMIT_FOR_ONE_BATCH : putRecordsRequestEntryList.size();
-            try {
-                // Create PutRecords request and use kinesis client to send it.
-                PutRecordsRequest putRecordsRequest = new PutRecordsRequest();
-                putRecordsRequest.setStreamName(streamName);
-                // Only set sequenceNumberForOrdering if required by users.
-                if (isUsingSequenceNumberForOrdering) {
-                    putRecordsRequest.setSequenceNumberForOrdering(sequenceNumberForOrdering);
+    public  boolean sendRecordsAsync(String shardKey,  List<PutRecordsRequestEntry>  putRecordsRequestEntryList) {
+        synchronized (putRecordsRequestEntryList) {
+            // Only try to put records if there are some records already in cache.
+            if (putRecordsRequestEntryList.size() > 0) {
+                // Calculate the real number of records which will be put in the request. If the number of records in
+                // the list is no less than 500, set it to 500; otherwise, set it as the list size.
+                final int intendToSendRecordNumber =
+                        (putRecordsRequestEntryList.size() >= RECORDS_COUNT_LIMIT_FOR_ONE_BATCH) ?
+                                RECORDS_COUNT_LIMIT_FOR_ONE_BATCH : putRecordsRequestEntryList.size();
+                try {
+                    // Create PutRecords request and use kinesis client to send it.
+                    PutRecordsRequest putRecordsRequest = new PutRecordsRequest();
+                    putRecordsRequest.setStreamName(streamName);
+                    // Only set sequenceNumberForOrdering if required by users.
+                    if (isUsingSequenceNumberForOrdering) {
+                        putRecordsRequest.setSequenceNumberForOrdering(sequenceNumberForOrdering);
+                    }
+                    // Set a sub list of the current records list with maximum of 500 records.
+                    List subList = putRecordsRequestEntryList.subList(0, intendToSendRecordNumber);
+                    putRecordsRequest.setRecords(new ArrayList(subList));
+                    subList.clear();
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug(String.format("SequenceNumberForOrdering : [%s]; NumberOfRecords : [%d]",
+                                sequenceNumberForOrdering, intendToSendRecordNumber));
+                    }
+                    amazonKinesisClient.putRecordsAsync(putRecordsRequest, asyncCallHander);
+                    shardToFlushTime.get(shardKey).set(System.currentTimeMillis());
+
+                } catch (AmazonClientException e) {
+                    LOG.error(e.getMessage());
                 }
-                // Set a sub list of the current records list with maximum of 500 records.
-                List subList = putRecordsRequestEntryList.subList(0, intendToSendRecordNumber);
-                putRecordsRequest.setRecords(new ArrayList(subList));
-                subList.clear();
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug(String.format("SequenceNumberForOrdering : [%s]; NumberOfRecords : [%d]",
-                            sequenceNumberForOrdering, intendToSendRecordNumber));
-                }
-                amazonKinesisClient.putRecordsAsync(putRecordsRequest, asyncCallHander);
-            } catch (AmazonClientException e) {
-                LOG.error(e.getMessage());
+            } else {
+                LOG.warn("There is no record in batch.");
             }
-        } else {
-            LOG.warn("There is no record in batch.");
         }
 
         // Return true if the entries count hit the limit, otherwise, return false.
-        return (putRecordsRequestEntryList.size() >= RECORDS_COUNT_LIMIT_FOR_ONE_BATCH);
+        return (putRecordsRequestEntryList.size() > 0);
     }
 
     public int getSuccessCountAndaddFailedRecordsBackToQueue(PutRecordsRequest putRecordsRequst,  PutRecordsResult putRecordsResult) {
