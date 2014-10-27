@@ -1,6 +1,7 @@
 package com.amazonaws.services.kinesis.log4j.appender.rolling;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -50,6 +51,7 @@ public class S3RolloverStrategy extends DefaultRolloverStrategy{
     private boolean initializationFailed = false;
     private BlockingQueue<Runnable> taskBuffer;
     private TransferManager s3TransferManager;
+    private AmazonS3Client amazonS3Client;
 
 
     /**
@@ -131,10 +133,10 @@ public class S3RolloverStrategy extends DefaultRolloverStrategy{
         }
 
         S3AsyncPutAction s3AsyncPutAction =
-                new S3AsyncPutAction(s3TransferManager, renamedFileAbsolutePath, bucketName);
+                new S3AsyncPutAction(amazonS3Client, renamedFileAbsolutePath, bucketName);
 
         asyncActions.add(s3AsyncPutAction);
-        asyncActions.add(new FileDeleteAction(renamedFileAbsolutePath));
+    //    asyncActions.add(new FileDeleteAction(renamedFileAbsolutePath));
 
 
         CompositeAction compositeAction = new CompositeAction(asyncActions, false);
@@ -194,7 +196,11 @@ public class S3RolloverStrategy extends DefaultRolloverStrategy{
                 }
             };
 
-            s3TransferManager = new TransferManager(new AmazonS3Client(provider), threadPoolExecutor);
+            //s3TransferManager = new TransferManager(new AmazonS3Client(provider), threadPoolExecutor);
+            ClientConfiguration clientConfiguration = new ClientConfiguration();
+            clientConfiguration.setUserAgent("AmazonS3Client");
+
+            amazonS3Client = new AmazonS3Client(provider, clientConfiguration);
 
         }
     }

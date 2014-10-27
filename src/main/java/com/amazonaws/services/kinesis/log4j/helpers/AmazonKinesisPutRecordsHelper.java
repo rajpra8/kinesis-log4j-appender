@@ -41,6 +41,7 @@ public class AmazonKinesisPutRecordsHelper {
     private static final Log LOG = LogFactory.getLog(AmazonKinesisPutRecordsHelper.class);
     // Count limit for how many records could be put in one request.
     private static final int RECORDS_COUNT_LIMIT_FOR_ONE_BATCH = 500;
+    private static final int TIME_THRESHHOLD_FOR_FLUSH_IN_MILLI = 5000;
     private static final int NUMBER_OF_SHARDS = 1;
 
     private final AmazonKinesisAsyncClient amazonKinesisClient;
@@ -50,6 +51,7 @@ public class AmazonKinesisPutRecordsHelper {
     private AsyncHandler<PutRecordsRequest, PutRecordsResult> asyncCallHander;
     private int batchSize = RECORDS_COUNT_LIMIT_FOR_ONE_BATCH ;
     private int numOfShards = 1;
+    private long timeThreshHoldForFlushInMilli = TIME_THRESHHOLD_FOR_FLUSH_IN_MILLI;
 
     public int getBatchSize() {
         return batchSize;
@@ -72,8 +74,9 @@ public class AmazonKinesisPutRecordsHelper {
     public AmazonKinesisPutRecordsHelper(AmazonKinesisAsyncClient amazonKinesisClient,
                                          String streamName,
                                          int batchSize,
-                                         int numOfShards) {
-        this(amazonKinesisClient, streamName, null, false, batchSize, numOfShards);
+                                         int numOfShards,
+                                         long timeThreshHoldForFlushInMilli) {
+        this(amazonKinesisClient, streamName, null, false, batchSize, numOfShards, timeThreshHoldForFlushInMilli);
     }
 
     /**
@@ -88,7 +91,8 @@ public class AmazonKinesisPutRecordsHelper {
                                          String streamName,
                                          String initialSequenceNumberForOrdering) {
         this(amazonKinesisClient, streamName, initialSequenceNumberForOrdering, true,
-                RECORDS_COUNT_LIMIT_FOR_ONE_BATCH, NUMBER_OF_SHARDS
+                RECORDS_COUNT_LIMIT_FOR_ONE_BATCH, NUMBER_OF_SHARDS,
+                TIME_THRESHHOLD_FOR_FLUSH_IN_MILLI
                 );
     }
 
@@ -104,7 +108,8 @@ public class AmazonKinesisPutRecordsHelper {
                                   String initialSequenceNumberForOrdering,
                                   boolean isUsingSequenceNumberForOrdering,
                                   int batchSize,
-                                  int numOfShards
+                                  int numOfShards,
+                                  long timeThreshHoldForFlushInMilli
                                   ) {
         this.amazonKinesisClient = amazonKinesisClient;
         this.asyncCallHander = new AsyncBatchPutHandler(streamName, this);
@@ -113,6 +118,7 @@ public class AmazonKinesisPutRecordsHelper {
         this.isUsingSequenceNumberForOrdering = isUsingSequenceNumberForOrdering;
         this.batchSize = batchSize;
         this.numOfShards = numOfShards;
+        this.timeThreshHoldForFlushInMilli = timeThreshHoldForFlushInMilli;
         shardToputRecordsRequestEntryMap = new ConcurrentHashMap<>();
         for (int i = 1;  i <= numOfShards ; i++){
             String key = "shard"+i;
@@ -159,8 +165,8 @@ public class AmazonKinesisPutRecordsHelper {
 
    public void checkTimeBaseTriggerForAllBucketsAndFlush(){
        for (Map.Entry<String, List<PutRecordsRequestEntry>> entry : shardToputRecordsRequestEntryMap.entrySet()){
-           //@todo make the time configurable
-           if ((System.currentTimeMillis() - shardToFlushTime.get(entry.getKey()).get()) > 10000) {
+
+           if ((System.currentTimeMillis() - shardToFlushTime.get(entry.getKey()).get()) > timeThreshHoldForFlushInMilli) {
                sendRecordsAsync(entry.getKey(), entry.getValue());
            }
        }

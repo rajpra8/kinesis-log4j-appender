@@ -68,6 +68,7 @@ public class KinesisAppenderBatch extends AbstractAppender {
   private AmazonKinesisAsyncClient kinesisClient;
   private AmazonKinesisPutRecordsHelper amazonKinesisPutRecordsHelper;
   private int batchSize;
+  private long timeThreshHoldForFlushInMilli;
 
     protected KinesisAppenderBatch(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions,
                                    String encoding,
@@ -78,7 +79,8 @@ public class KinesisAppenderBatch extends AbstractAppender {
                                    String streamName,
                                    String accessKey,
                                    String secret,
-                                   int batchSize
+                                   int batchSize,
+                                   long timeThreshHoldForFlushInMilli
 
     ) {
         super(name, filter, layout, ignoreExceptions);
@@ -91,6 +93,7 @@ public class KinesisAppenderBatch extends AbstractAppender {
         this.accessKey = accessKey;
         this.secret = secret;
         this.batchSize = batchSize;
+        this.timeThreshHoldForFlushInMilli = timeThreshHoldForFlushInMilli;
 
         activateOptions();
     }
@@ -118,7 +121,8 @@ public class KinesisAppenderBatch extends AbstractAppender {
             @PluginAttribute("streamName") String streamName,
             @PluginAttribute("accessKey") String accessKey,
             @PluginAttribute("secret") String secret,
-            @PluginAttribute("batchSize") int batchSize
+            @PluginAttribute("batchSize") int batchSize,
+            @PluginAttribute("timeThreshHoldForFlushInMilli") Long timeThreshHoldForFlushInMilli
 
     ) {
         if (name == null) {
@@ -130,10 +134,10 @@ public class KinesisAppenderBatch extends AbstractAppender {
         }
         final boolean ignoreExceptions = Booleans.parseBoolean(ignore, true);
 
-
+        Long timeThreshHoldForFlushInMilliLocal =  (timeThreshHoldForFlushInMilli == null) ? 5000l : timeThreshHoldForFlushInMilli;
 
         return new KinesisAppenderBatch(name,filter, layout, ignoreExceptions, encoding, maxRetries, bufferSize, threadCount,
-                shutdownTimeout, streamName, accessKey, secret, batchSize);
+                shutdownTimeout, streamName, accessKey, secret, batchSize, timeThreshHoldForFlushInMilliLocal);
     }
 
     public void error(String message) {
@@ -246,7 +250,7 @@ public class KinesisAppenderBatch extends AbstractAppender {
 
   //clientConfiguration.withConnectionTimeout(50).withSocketTimeout(50);
 
-    amazonKinesisPutRecordsHelper = new AmazonKinesisPutRecordsHelper(kinesisClient, streamName, batchSize, numOfShards);
+    amazonKinesisPutRecordsHelper = new AmazonKinesisPutRecordsHelper(kinesisClient, streamName, batchSize, numOfShards, timeThreshHoldForFlushInMilli);
 
 
 

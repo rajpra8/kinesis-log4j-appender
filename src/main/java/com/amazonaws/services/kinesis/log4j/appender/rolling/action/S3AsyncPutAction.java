@@ -31,10 +31,11 @@ public class S3AsyncPutAction extends AbstractAction {
     private String fileName;
     private String bucketName;
     private TransferManager transferManager;
-    private static final Logger logger = LogManager.getLogger(S3AsyncPutAction.class);
+    private AmazonS3Client amazonS3Client;
 
-    public S3AsyncPutAction(TransferManager transferManager, String fileName, String bucketName) {
-        this.transferManager = transferManager;
+    public S3AsyncPutAction(AmazonS3Client amazonS3Client, String fileName, String bucketName) {
+       // this.transferManager = transferManager;
+        this.amazonS3Client = amazonS3Client;
         this.fileName = fileName;
         this.bucketName = bucketName;
     }
@@ -49,17 +50,21 @@ public class S3AsyncPutAction extends AbstractAction {
 
         File file = new File(fileName);
         try {
+            LOGGER.debug("starting transfer for fileName " + fileName);
             PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, file.getName(), file);
+            amazonS3Client.putObject(putObjectRequest);
 
-            Upload myUpload = transferManager.upload(putObjectRequest);
-            myUpload.waitForUploadResult();
-            if (myUpload.isDone()){
-                logger.info("Transfer: " + myUpload.getDescription());
-                logger.info("  - State: " + myUpload.getState());
-                logger.info("  - Progress: " + myUpload.getProgress().getBytesTransferred());
-            }
 
-          //  myUpload.addProgressListener(new S3ProgressListener(myUpload));
+           // Upload myUpload = transferManager.upload(putObjectRequest);
+//            myUpload.waitForUploadResult();
+
+//            if (myUpload.isDone()){
+//                LOGGER.info("Transfer: " + myUpload.getDescription());
+//                LOGGER.info("  - State: " + myUpload.getState());
+//                LOGGER.info("  - Progress: " + myUpload.getProgress().getBytesTransferred());
+//            }
+
+         //   myUpload.addProgressListener(new S3ProgressListener(myUpload));
 
             return true;
 
