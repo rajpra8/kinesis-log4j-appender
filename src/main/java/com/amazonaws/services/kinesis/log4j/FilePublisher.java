@@ -53,7 +53,7 @@ public class FilePublisher {
     return bufferedRecordsCount;
   }
 
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) throws Exception {
     if (args.length != 1) {
       System.err.println("Usage: java " + FilePublisher.class.getName() + " <file_path>");
       System.err.println();
@@ -91,10 +91,12 @@ public class FilePublisher {
           //logger.info(line);
         //  LogManager.getLogger("kinesis").info(line);
 
-         // kinesisBatchLogger.info(line);
-          kinesisS3Logger.info(line);
+          kinesisBatchLogger.info(line);
+     //     kinesisS3Logger.info(line);
       }
 
+      Thread.sleep(10000);
+      kinesisBatchLogger.info("trigger message");
 //    while ((line = reader.readLine()) != null) {
 //      sb.append(line).append("\t");
 //                  j++;

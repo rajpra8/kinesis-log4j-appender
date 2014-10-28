@@ -63,7 +63,8 @@ public class AsyncBatchPutHandler implements AsyncHandler<PutRecordsRequest, Put
     int currentSuccessfulCount = amazonKinesisPutRecordsHelper.getSuccessCountAndaddFailedRecordsBackToQueue(request, result);
     successfulRequestCount = successfulRequestCount + currentSuccessfulCount;
 
-    if (logger.isInfoEnabled() && (successfulRequestCount + failedRequestCount) % amazonKinesisPutRecordsHelper.getBatchSize() == 0) {
+    if ((logger.isInfoEnabled() && (successfulRequestCount + failedRequestCount) % amazonKinesisPutRecordsHelper.getBatchSize() == 0) ||
+            logger.isDebugEnabled()) {
       logger.info("Appender (" + appenderName + ") made " + successfulRequestCount
           + " successful put requests out of total " + (successfulRequestCount + failedRequestCount) + " in "
           + PeriodFormat.getDefault().print(new Period(startTime, DateTime.now())) + " since start");

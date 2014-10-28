@@ -75,7 +75,7 @@ public class AmazonKinesisPutRecordsHelper {
                                          String streamName,
                                          int batchSize,
                                          int numOfShards,
-                                         long timeThreshHoldForFlushInMilli) {
+                                         Long timeThreshHoldForFlushInMilli) {
         this(amazonKinesisClient, streamName, null, false, batchSize, numOfShards, timeThreshHoldForFlushInMilli);
     }
 
@@ -120,6 +120,7 @@ public class AmazonKinesisPutRecordsHelper {
         this.numOfShards = numOfShards;
         this.timeThreshHoldForFlushInMilli = timeThreshHoldForFlushInMilli;
         shardToputRecordsRequestEntryMap = new ConcurrentHashMap<>();
+        shardToFlushTime = new ConcurrentHashMap<>();
         for (int i = 1;  i <= numOfShards ; i++){
             String key = "shard"+i;
             shardToputRecordsRequestEntryMap.put(key,  Collections.synchronizedList(new ArrayList<PutRecordsRequestEntry>()));
@@ -203,8 +204,6 @@ public class AmazonKinesisPutRecordsHelper {
                 } catch (AmazonClientException e) {
                     LOG.error(e.getMessage());
                 }
-            } else {
-                LOG.warn("There is no record in batch.");
             }
         }
 

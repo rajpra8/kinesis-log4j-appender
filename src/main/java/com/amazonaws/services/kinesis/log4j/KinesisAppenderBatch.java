@@ -122,7 +122,7 @@ public class KinesisAppenderBatch extends AbstractAppender {
             @PluginAttribute("accessKey") String accessKey,
             @PluginAttribute("secret") String secret,
             @PluginAttribute("batchSize") int batchSize,
-            @PluginAttribute("timeThreshHoldForFlushInMilli") Long timeThreshHoldForFlushInMilli
+            @PluginAttribute(value = "timeThreshHoldForFlushInMilli", defaultLong = AppenderConstants.DEFAULT_TIME_THRESHHOLD_FOR_FLUSH_IN_MILLI) Long timeThreshHoldForFlushInMilli
 
     ) {
         if (name == null) {
@@ -134,10 +134,8 @@ public class KinesisAppenderBatch extends AbstractAppender {
         }
         final boolean ignoreExceptions = Booleans.parseBoolean(ignore, true);
 
-        Long timeThreshHoldForFlushInMilliLocal =  (timeThreshHoldForFlushInMilli == null) ? 5000l : timeThreshHoldForFlushInMilli;
-
         return new KinesisAppenderBatch(name,filter, layout, ignoreExceptions, encoding, maxRetries, bufferSize, threadCount,
-                shutdownTimeout, streamName, accessKey, secret, batchSize, timeThreshHoldForFlushInMilliLocal);
+                shutdownTimeout, streamName, accessKey, secret, batchSize, timeThreshHoldForFlushInMilli);
     }
 
     public void error(String message) {
@@ -311,13 +309,18 @@ public class KinesisAppenderBatch extends AbstractAppender {
     }
     try {
       String message = logEvent.getMessage().getFormattedMessage();
-      String[] partionkeyAndData =  message.split("\t");
-      String partitionKey = (partionkeyAndData.length == 2) ? partionkeyAndData[0] :  UUID.randomUUID().toString();
-      String dataStr =  (partionkeyAndData.length == 2) ? partionkeyAndData[1] :  partionkeyAndData[0];
+      if (message != null && !message.isEmpty()) {
+          String[] partionkeyAndData = message.split("\t");
+          String partitionKey = (partionkeyAndData.length == 2) ? partionkeyAndData[0] : UUID.randomUUID().toString();
+          String dataStr = (partionkeyAndData.length == 2) ? partionkeyAndData[1] : partionkeyAndData[0];
 
-      ByteBuffer data = ByteBuffer.wrap(dataStr.getBytes(encoding));
+          ByteBuffer data = ByteBuffer.wrap(dataStr.getBytes(encoding));
 
-      amazonKinesisPutRecordsHelper.addRecord(data, partitionKey, null);
+          amazonKinesisPutRecordsHelper.addRecord(data, partitionKey, null);
+      }
+      else {
+          LOGGER.debug("kinesis batch appender called with empty message");
+      }
 
     } catch (Exception e) {
       LOGGER.error("Failed to schedule log entry for publishing into Kinesis stream: " + streamName);
