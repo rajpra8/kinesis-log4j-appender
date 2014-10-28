@@ -50,7 +50,7 @@ public class S3AsyncPutAction extends AbstractAction {
 
         File file = new File(fileName);
         try {
-            LOGGER.debug("starting transfer for fileName " + fileName);
+            LOGGER.info("starting transfer for fileName " + fileName);
             PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, file.getName(), file);
             amazonS3Client.putObject(putObjectRequest);
 
@@ -65,6 +65,8 @@ public class S3AsyncPutAction extends AbstractAction {
 //            }
 
          //   myUpload.addProgressListener(new S3ProgressListener(myUpload));
+            file.delete();
+            LOGGER.info("deleted file after successful transfer " + fileName);
 
             return true;
 

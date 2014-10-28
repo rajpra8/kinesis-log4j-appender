@@ -91,12 +91,12 @@ public class FilePublisher {
           //logger.info(line);
         //  LogManager.getLogger("kinesis").info(line);
 
-          kinesisBatchLogger.info(line);
-     //     kinesisS3Logger.info(line);
+      //    kinesisBatchLogger.info(line);
+         kinesisS3Logger.info(line);
       }
 
-      Thread.sleep(10000);
-      kinesisBatchLogger.info("trigger message");
+//      Thread.sleep(10000);
+//      kinesisBatchLogger.info("trigger message");
 //    while ((line = reader.readLine()) != null) {
 //      sb.append(line).append("\t");
 //                  j++;
