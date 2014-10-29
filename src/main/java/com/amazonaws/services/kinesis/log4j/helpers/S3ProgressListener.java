@@ -5,6 +5,9 @@ import com.amazonaws.event.ProgressListener;
 import com.amazonaws.services.s3.transfer.Upload;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.status.StatusLogger;
+
+import java.io.File;
 
 
 /**
@@ -12,13 +15,16 @@ import org.apache.logging.log4j.Logger;
  */
 public class S3ProgressListener implements ProgressListener {
 
-    private static Logger logger = LogManager.getLogger(S3ProgressListener.class);
+
+    private static Logger logger = StatusLogger.getLogger();
 
     Upload upload;
+    File file;
     @Override
     public void progressChanged(ProgressEvent progressEvent) {
       if (upload.isDone()){
           logger.info("upload of file " + upload.getDescription() + "completed");
+          this.file.delete();
       }
       else
       {
@@ -31,7 +37,9 @@ public class S3ProgressListener implements ProgressListener {
       }
     }
 
-    public S3ProgressListener(Upload upload) {
+    public S3ProgressListener(Upload upload, File file) {
+
         this.upload = upload;
+        this.file = file;
     }
 }

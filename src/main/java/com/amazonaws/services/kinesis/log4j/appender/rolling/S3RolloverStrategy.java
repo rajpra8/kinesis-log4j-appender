@@ -10,6 +10,7 @@ import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.kinesis.log4j.AppenderConstants;
 import com.amazonaws.services.kinesis.log4j.appender.rolling.action.FileDeleteAction;
 import com.amazonaws.services.kinesis.log4j.appender.rolling.action.S3AsyncPutAction;
+import com.amazonaws.services.kinesis.log4j.appender.rolling.action.S3AsyncPutActionWithTransferManager;
 import com.amazonaws.services.kinesis.log4j.helpers.AsyncPutCallStatsReporter;
 import com.amazonaws.services.kinesis.log4j.helpers.DiscardFastProducerPolicy;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -132,10 +133,14 @@ public class S3RolloverStrategy extends DefaultRolloverStrategy{
             asyncActions.add(compressionAction);
         }
 
-        S3AsyncPutAction s3AsyncPutAction =
-                new S3AsyncPutAction(amazonS3Client, renamedFileAbsolutePath, bucketName);
+//        S3AsyncPutAction s3AsyncPutAction =
+//                new S3AsyncPutAction(amazonS3Client, renamedFileAbsolutePath, bucketName);
 
-        asyncActions.add(s3AsyncPutAction);
+        S3AsyncPutActionWithTransferManager s3AsyncPutActionWithTransferManager =
+                new S3AsyncPutActionWithTransferManager(s3TransferManager, renamedFileAbsolutePath, bucketName);
+
+        //asyncActions.add(s3AsyncPutAction);
+        asyncActions.add(s3AsyncPutActionWithTransferManager);
     //    asyncActions.add(new FileDeleteAction(renamedFileAbsolutePath));
 
 
@@ -196,11 +201,13 @@ public class S3RolloverStrategy extends DefaultRolloverStrategy{
                 }
             };
 
-            //s3TransferManager = new TransferManager(new AmazonS3Client(provider), threadPoolExecutor);
+
             ClientConfiguration clientConfiguration = new ClientConfiguration();
             clientConfiguration.setUserAgent("AmazonS3Client");
 
             amazonS3Client = new AmazonS3Client(provider, clientConfiguration);
+
+            s3TransferManager = new TransferManager(amazonS3Client, threadPoolExecutor);
 
         }
     }
