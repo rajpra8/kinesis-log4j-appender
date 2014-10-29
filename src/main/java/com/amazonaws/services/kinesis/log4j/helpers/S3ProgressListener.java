@@ -23,7 +23,7 @@ public class S3ProgressListener implements ProgressListener {
     @Override
     public void progressChanged(ProgressEvent progressEvent) {
       if (upload.isDone()){
-          logger.info("upload of file " + upload.getDescription() + "completed");
+          logger.info("upload completed " + upload.getDescription());
           this.file.delete();
       }
       else
