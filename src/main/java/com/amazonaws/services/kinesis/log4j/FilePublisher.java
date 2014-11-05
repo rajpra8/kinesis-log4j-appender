@@ -54,11 +54,12 @@ public class FilePublisher {
   }
 
   public static void main(String[] args) throws Exception {
-    if (args.length != 1) {
+    if (args.length != 3) {
       System.err.println("Usage: java " + FilePublisher.class.getName() + " <file_path>");
       System.err.println();
-      System.err.println("<file_path>\t-\tabsolute path for the input file, this file will be read line by line and ");
-      System.err.println("\t\t\tpublished to Kinesis");
+      System.err.println("<file_path>\t-\tabsolute path for the input file <>, <sendDataToKinesis>\t - y or n,<sendDataToS3> \t - y or n" +
+              " this file will be read line by line and ");
+      System.err.println("\t\t\tpublished to kinesis or S3");
       System.exit(1);
     }
     String fileAbsolutePath = args[0];
@@ -68,10 +69,14 @@ public class FilePublisher {
       System.exit(2);
     }
 
+    String sendDataToKinesis =   args[1];
+    String sendDataToS3 =   args[2];
+
+
     //Logger kinesisLogger = LogManager.getLogger("kinesis");
      Logger kinesisBatchLogger = LogManager.getLogger("kinesisBatch");
 
-    Logger kinesisLogger = LogManager.getLogger("kinesisRolling1");
+//    Logger kinesisLogger = LogManager.getLogger("kinesisRolling1");
 
     Logger kinesisS3Logger = LogManager.getLogger("KINESISS3ROLLING");
 
@@ -91,8 +96,14 @@ public class FilePublisher {
           //logger.info(line);
         //  LogManager.getLogger("kinesis").info(line);
 
-      //    kinesisBatchLogger.info(line);
-         kinesisS3Logger.info(line);
+         if (sendDataToKinesis != null && sendDataToKinesis.equalsIgnoreCase("y")){
+             kinesisBatchLogger.info(line);
+         }
+
+          if (sendDataToS3 != null && sendDataToS3.equalsIgnoreCase("y")){
+              kinesisS3Logger.info(line);
+          }
+
       }
 
 //      Thread.sleep(10000);

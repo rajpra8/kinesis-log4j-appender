@@ -2,7 +2,9 @@ package com.amazonaws.services.kinesis.log4j.helpers;
 
 import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.event.ProgressListener;
+import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.Upload;
+import com.amazonaws.services.s3.transfer.internal.S3SyncProgressListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.status.StatusLogger;
@@ -13,7 +15,7 @@ import java.io.File;
 /**
  * Created by prasad on 10/21/14.
  */
-public class S3ProgressListener implements ProgressListener {
+public class S3ProgressListener extends S3SyncProgressListener {
 
 
     private static Logger logger = StatusLogger.getLogger();
@@ -41,5 +43,10 @@ public class S3ProgressListener implements ProgressListener {
 
         this.upload = upload;
         this.file = file;
+    }
+
+    @Override
+    public void onPersistableTransfer(PersistableTransfer persistableTransfer) {
+
     }
 }
