@@ -20,7 +20,7 @@
 
   <groupId>com.mlbam.amazonaws</groupId>
   <artifactId>kinesis-log4j2-appender</artifactId>
-  <version>1.3.0</version>
+  <version>1.3.1</version>
 
   <name>Log4j Appender for pushing logs to Kinesis</name>
   <url>https://github.com/prasad/kinesis-log4j-appender.git</url>
