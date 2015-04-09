@@ -30,7 +30,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -43,7 +43,8 @@ public class AmazonKinesisPutRecordsHelper {
     private static final int RECORDS_COUNT_LIMIT_FOR_ONE_BATCH = 500;
     private static final int TIME_THRESHHOLD_FOR_FLUSH_IN_MILLI = 5000;
     private static final int NUMBER_OF_SHARDS = 1;
-
+    
+    private final ScheduledExecutorService flushBucketScheduler = Executors.newScheduledThreadPool(1);
     private final AmazonKinesisAsyncClient amazonKinesisClient;
     private final String streamName;
     private final boolean isUsingSequenceNumberForOrdering;
@@ -62,8 +63,8 @@ public class AmazonKinesisPutRecordsHelper {
 //    private List<PutRecordsRequestEntry> putRecordsRequestEntryList =
 //            Collections.synchronizedList(new ArrayList<PutRecordsRequestEntry>());
 
-    private Map<String, List<PutRecordsRequestEntry> > shardToputRecordsRequestEntryMap;
-    private Map<String, AtomicLong>  shardToFlushTime;
+    private ConcurrentMap<String, List<PutRecordsRequestEntry> > shardToputRecordsRequestEntryMap;
+    private ConcurrentMap<String, AtomicLong> shardToFlushTime;
 
     /**
      * Constructor. By calling this constructor, helper would not set sequenceNumberForOrdering for
@@ -126,6 +127,8 @@ public class AmazonKinesisPutRecordsHelper {
             shardToputRecordsRequestEntryMap.put(key,  Collections.synchronizedList(new ArrayList<PutRecordsRequestEntry>()));
             shardToFlushTime.put(key, new AtomicLong(System.currentTimeMillis()));
         }
+        long scheduleTime = determineScheduleTime(timeThreshHoldForFlushInMilli);
+        flushBucketScheduler.scheduleAtFixedRate(new FlushBucketTask(timeThreshHoldForFlushInMilli, shardToputRecordsRequestEntryMap, shardToFlushTime), scheduleTime, scheduleTime, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -258,5 +261,44 @@ public class AmazonKinesisPutRecordsHelper {
             //ignore
         }
         return shardBucket;
+    }
+    
+    private long determineScheduleTime(long thresholdMillis){
+        final long DEFAULT_SCHEDULE_TIME = 2000;
+        
+        if(thresholdMillis <= 0) return DEFAULT_SCHEDULE_TIME;
+        else return (thresholdMillis / 2);
+    }
+    
+    private class FlushBucketTask implements Runnable {
+
+        private final Log LOG = LogFactory.getLog(FlushBucketTask.class);
+
+        private final long threshold;
+        private final ConcurrentMap<String, List<PutRecordsRequestEntry>> recordMap;
+        private final ConcurrentMap<String, AtomicLong> shardFlushTimeMap;
+        
+        public FlushBucketTask(long threshold, ConcurrentMap<String, List<PutRecordsRequestEntry>> recordMap, ConcurrentMap<String, AtomicLong> shardFlushTimeMap){
+            this.threshold = threshold;
+            this.recordMap = recordMap;
+            this.shardFlushTimeMap = shardFlushTimeMap;
+        }
+        
+        @Override
+        public void run() {
+            try {
+                for (Map.Entry<String, List<PutRecordsRequestEntry>> entry : recordMap.entrySet()) {
+                    if(LOG.isDebugEnabled()) LOG.debug(String.format("FlushBucketTask() - Evaluating Shard: %s -- [Current Time: %s, Flush Time: %s]", entry.getKey(), new Date(System.currentTimeMillis()), new Date(shardFlushTimeMap.get(entry.getKey()).get() + threshold)));
+
+                    if ((System.currentTimeMillis() - shardFlushTimeMap.get(entry.getKey()).get()) > threshold) {
+                        if(LOG.isDebugEnabled()) LOG.debug(String.format("FlushBucketTask() - Flushed: %s entries", entry.getValue().size()));
+                        sendRecordsAsync(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            catch(Exception e){
+                LOG.error("Encountered Exception While Running FlushBucketTask", e);
+            }
+        }
     }
 }
