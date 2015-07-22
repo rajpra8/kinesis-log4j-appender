@@ -189,10 +189,7 @@ public class AmazonKinesisPutRecordsHelper {
                     // Create PutRecords request and use kinesis client to send it.
                     PutRecordsRequest putRecordsRequest = new PutRecordsRequest();
                     putRecordsRequest.setStreamName(streamName);
-                    // Only set sequenceNumberForOrdering if required by users.
-                    if (isUsingSequenceNumberForOrdering) {
-                        putRecordsRequest.setSequenceNumberForOrdering(sequenceNumberForOrdering);
-                    }
+
                     // Set a sub list of the current records list with maximum of 500 records.
                     List subList = putRecordsRequestEntryList.subList(0, intendToSendRecordNumber);
                     putRecordsRequest.setRecords(new ArrayList(subList));
@@ -225,15 +222,12 @@ public class AmazonKinesisPutRecordsHelper {
             Iterator<PutRecordsRequestEntry> putRecordsRequestEntryIterator =
                     putRecordsRequst.getRecords().iterator();
             for (PutRecordsResultEntry putRecordsResultEntry : putRecordsResult.getRecords()) {
-                final String message = putRecordsResultEntry.getMessage();
+                final String errorMessage = putRecordsResultEntry.getErrorMessage();
+                final String errorCode = putRecordsResultEntry.getErrorCode();
                 final PutRecordsRequestEntry putRecordRequestEntry = putRecordsRequestEntryIterator.next();
 
                 // If message equals to null, it means the record succeed in putting.
-                if (message == null) {
-                    // Keep tracking the last sequence number in each batch.
-                    if (isUsingSequenceNumberForOrdering) {
-                        sequenceNumberForOrdering = putRecordsResultEntry.getSequenceNumber();
-                    }
+                if (errorCode == null) {
 
                     totalSucceedRecordCount++;
 
@@ -243,7 +237,7 @@ public class AmazonKinesisPutRecordsHelper {
                 } else {
                     if (LOG.isDebugEnabled()) {
                         LOG.debug(String.format("Failed Record : %s with error %s",
-                                putRecordRequestEntry.toString(), message));
+                                putRecordRequestEntry.toString(), errorMessage));
                     }
                     addRecord(putRecordRequestEntry.getData(),putRecordRequestEntry.getPartitionKey(),
                             putRecordRequestEntry.getExplicitHashKey());
