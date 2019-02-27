@@ -1,6 +1,6 @@
 # Log4J Appender for Amazon Kinesis
 
-The Log4J Appender for Amazon Kinesis enables customers to publish logs from their Java applications into an Amazon Kinesis stream. We also provide a publisher application which uses the Log4J Appender for Amazon Kinesis to publish data from a file into an Amazon Kinesis stream.
+The Log4J Appender for Amazon Kinesis enables customers to publish logs from their Java applications into an Amazon Kinesis stream using Log4J2. We also provide a publisher application which uses the Log4J Appender for Amazon Kinesis to publish data from a file into an Amazon Kinesis stream.
 
 ## Requirements
 * [AWS SDK for Java 1.7](http://aws.amazon.com/sdkforjava)
